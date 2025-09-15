@@ -8,145 +8,151 @@ namespace GetTests
     {
         public static void Main(string[] args)
         {
-
             string xmlFilePath = @"C:\Users\ZEN\SpdsTest\net8.0\finded_test.xml";
-
-
-            //TestResults results = new TestResults();
-
-            //results = DeserializeReport(xmlFilePath);
-
-
-            ;
-            //XmlRootAttribute xRoot = new XmlRootAttribute();
-            //xRoot.ElementName = "test-run";
-            //xRoot.IsNullable = false;
-            //;
-            //XmlNUnit xmlNUnit = new XmlNUnit();
-
-
-            //XmlSerializer serializer = new XmlSerializer(typeof(XmlNUnit), xRoot);
-
-            //using (FileStream fileStream = new FileStream(xmlFilePath, FileMode.Open))
-            //{
-            //    xmlNUnit = (XmlNUnit) serializer.Deserialize(fileStream);
-            //}
+            //PullAllTestCases(xmlFilePath);
 
             XDocument doc = XDocument.Load(xmlFilePath);
-
-            // Example: Get all test case names
-            var testCaseNames = doc.Descendants("test-suite").Where(ts => ts.Attribute("type")?.Value == "ParameterizedMethod")
+            var testCaseNames = doc.Descendants("test-suite").Where(ts => ts.Attribute("type")?.Value == "TestSuite")
                                    .ToList();
-            ;
-            testCaseNames.AddRange(doc.Descendants("test-case").Where(ts => ts.Attribute("name")?.Value == ts.Attribute("methodname")?.Value)
+
+
+            foreach (var testCase in testCaseNames.Skip(3))
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"{testCase.Attribute("name")?.Value} ({testCase.Attribute("testcasecount")?.Value})");
+
+                var test_fixture = testCase.Descendants("test-suite").Where(ts => ts.Attribute("type")?.Value == "TestFixture")
+                                   .ToList(); //
+
+
+                foreach (var tf in test_fixture)
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkYellow;
+                    Console.WriteLine($"\t{tf.Attribute("name")?.Value} ({tf.Attribute("testcasecount")?.Value})");
+
+                    var xml_report = tf.Descendants("test-suite").Where(ts => ts.Attribute("type")?.Value == "ParameterizedMethod")
+                                   .ToList();
+                    xml_report.AddRange(tf.Descendants("test-case").Where(ts => ts.Attribute("name")?.Value == ts.Attribute("methodname")?.Value)
                                    .ToList());
 
+                    foreach (var item in GetTests(xml_report))
+                    {
+                        Console.ForegroundColor = ConsoleColor.Gray;
+                        Console.WriteLine($"\t\t{item.Name} ");
+                    }
 
-            foreach (var testCase in testCaseNames)
+                }
+            }
+            ;
+        }
+
+        private static List<Test_case> PullAllTestCases(string xmlFilePath)
+        {
+            XDocument doc = XDocument.Load(xmlFilePath);
+
+            var xml_report = doc.Descendants("test-suite").Where(ts => ts.Attribute("type")?.Value == "ParameterizedMethod")
+                                   .ToList();
+            xml_report.AddRange(doc.Descendants("test-case").Where(ts => ts.Attribute("name")?.Value == ts.Attribute("methodname")?.Value)
+                                   .ToList());
+
+            List<Test_case> cases = GetTests(xml_report);
+            cases.Sort((x, y) => x.Property.TestCaseId.CompareTo(y.Property.TestCaseId));
+
+            return cases;
+        }
+
+        private static List<Test_case> GetTests(List<XElement> xml_report)
+        {
+            List<Test_case> cases = new List<Test_case>();
+
+            foreach (var testCase in xml_report)
             {
-                var proper = testCase.Descendants("property").ToList();
+                var prop = GetProperty(testCase);
 
-                string name = "";
-                string TestCaseId = "";
-
-                foreach (var item in proper)
+                var temp = new Test_case()
                 {
-                    if (item.Attribute("name")?.Value == "Name")
-                    {
-                        name = item.Attribute("value")?.Value;
-                    }
+                    methodname = testCase.Attribute("methodname")?.Value,
+                    classname = testCase.Attribute("classname")?.Value,
+                    runstate = testCase.Attribute("runstate")?.Value,
+                    fullname = testCase.Attribute("fullname")?.Value,
+                    Name = testCase.Attribute("name")?.Value,
+                    Property = prop,
+                };
 
-                    if (item.Attribute("name")?.Value == "TestCaseId")
-                    {
-                        TestCaseId = item.Attribute("value")?.Value;
-                    }
+                if (testCase.Attribute("type")?.Value == "ParameterizedMethod")
+                {
+                    temp.IsParameterizedMethod = true;
+
+                    var nested_xml_tc = testCase.Descendants("test-case").ToList();
+                    temp.NestedParamTests = GetTests(nested_xml_tc);
+                }
+
+                cases.Add(temp);
+                //Console.WriteLine($"{prop.TestCaseId} \t {prop.Name}");
+            }
+            return cases;
+        }
+        private static Property GetProperty(XElement testCase)
+        {
+            var proper = testCase.Descendants("property").ToList();
+
+            Property property = new();
+
+            foreach (var item in proper)
+            {
+                if (item.Attribute("name")?.Value == "Name")
+                {
+                    property.Name = item.Attribute("value")?.Value;
+                }
+                if (item.Attribute("name")?.Value == "TestCaseId")
+                {
+                    property.TestCaseId = item.Attribute("value")?.Value;
+                }
+                if (item.Attribute("name")?.Value == "GUID")
+                {
+                    property.Guid = item.Attribute("value")?.Value;
+                }
+                if (item.Attribute("name")?.Value == "Steps")
+                {
+                    property.Steps = item.Attribute("value")?.Value;
+                }
+                if (item.Attribute("name")?.Value == "Author")
+                {
+                    property.Author = item.Attribute("value")?.Value;
+                }
+                if (item.Attribute("name")?.Value == "CreateDate")
+                {
+                    property.CreateDate = item.Attribute("value")?.Value;
                 }
 
 
-                Console.WriteLine($"{TestCaseId} \t {name}");
             }
 
-
-            //foreach (var testCase in testCaseNames.Skip(3))
-            //{
-            //    Console.WriteLine($"{testCase.Attribute("name")?.Value} ({testCase.Attribute("testcasecount")?.Value})");
-
-            //    var test_fixture = testCase.Descendants("test-suite").Where(ts => ts.Attribute("type")?.Value == "TestFixture")
-            //                       .ToList(); //
-
-
-            //    foreach (var tf in test_fixture)
-            //    {
-            //        Console.WriteLine($"\t{tf.Attribute("name")?.Value} ");
-
-            //    }
+            return property;
+        }
+        public class Test_case
+        {
+            public bool IsParameterizedMethod { get; set; } = false;
+            public string Name { get; set; } = "";
+            public string methodname { get; set; } = "";
+            public string fullname { get; set; } = "";
+            public string classname { get; set; } = "";
+            public string runstate { get; set; } = "";
 
 
-
-            //}
-
-
-
-            ;
+            public Property Property { get; set; } = new Property();
+            public List<Test_case> NestedParamTests { get; set; } = new();
         }
 
-        public static TestResults DeserializeReport(string xmlFilePath)
+        public class Property
         {
+            public string Name { get; set; } = string.Empty;
+            public string TestCaseId { get; set; } = string.Empty;
+            public string Guid { get; set; } = string.Empty;
+            public string Steps { get; set; } = string.Empty;
 
-            XmlRootAttribute xRoot = new XmlRootAttribute();
-            xRoot.ElementName = "test-run";
-            xRoot.IsNullable = false;
-
-            XmlSerializer serializer = new XmlSerializer(typeof(TestResults), xRoot);
-            using (FileStream fileStream = new FileStream(xmlFilePath, FileMode.Open))
-            {
-                return (TestResults)serializer.Deserialize(fileStream);
-            }
-        }
-
-
-
-
-
-        // Define classes mirroring the NUnit XML structure
-        [XmlRoot("test-run")]
-        public class TestResults
-        {
-            [XmlAttribute("name")]
-            public string? Name { get; set; }
-
-            [XmlElement("test-suite")]
-            public List<TestSuite> TestSuites { get; set; } = new();
-        }
-
-        public class TestSuite
-        {
-            [XmlAttribute("name")]
-            public string? Name { get; set; }
-
-            [XmlAttribute("result")]
-            public string? Result { get; set; }
-
-            [XmlElement("results")]
-            public TestSuiteResults Results { get; set; } = new();
-
-            [XmlElement("test-suite")]
-            public List<TestSuite> TestSuites { get; set; } = new();
-        }
-
-        public class TestSuiteResults
-        {
-            [XmlElement("test-case")]
-            public List<TestCase> TestCases { get; set; } = new();
-        }
-
-        public class TestCase
-        {
-            [XmlAttribute("name")]
-            public string? Name { get; set; }
-
-            [XmlAttribute("result")]
-            public string? Result { get; set; }
+            public string Author { get; set; } = string.Empty;
+            public string CreateDate { get; set; } = string.Empty;
         }
     }
 }
